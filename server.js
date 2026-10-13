@@ -39,8 +39,10 @@ async function stats(days) {
   const since = new Date(Date.now() - days * 864e5).toISOString();
   const [views, events] = await Promise.all([
     fetchAll('page_views', 'id,created_at_ist,ip_hash,country,path,referrer,browser,device_type,language,utm_source,utm_campaign', since),
-    fetchAll('page_events', 'id,created_at_ist,path,event_type,seconds,scroll_pct,target', since),
+    fetchAll('page_events', 'id,created_at,path,event_type,seconds,scroll_pct,target', since),
   ]);
+  // page_events only has UTC created_at; derive IST wall-clock like page_views.created_at_ist.
+  for (const e of events) e.created_at_ist = new Date(new Date(e.created_at).getTime() + 5.5 * 3600e3).toISOString().slice(0, 19);
   const v = { ...compute(views, events, days), generatedAt: new Date().toISOString(), days };
   cache.set(days, { t: Date.now(), v });
   return v;
