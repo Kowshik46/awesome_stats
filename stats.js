@@ -33,12 +33,21 @@ function compute(views, events, days) {
     bump(browsers, v.browser || 'Unknown');
     bump(langs, v.language || 'Unknown');
   }
-  // Continuous day series (IST), filling zero days.
-  const series = [];
+  // Series per granularity (IST buckets), zero-filled. newVisitors = first seen in this window.
+  const days_ = [];
   const last = new Date(Date.now() + 5.5 * 3600e3);
-  for (let i = days - 1; i >= 0; i--) {
-    const d = new Date(last.getTime() - i * 864e5).toISOString().slice(0, 10);
-    series.push({ day: d, views: perDay.get(d) || 0, visitors: perDayUniq.get(d)?.size || 0 });
+  for (let i = days - 1; i >= 0; i--) days_.push(new Date(last.getTime() - i * 864e5).toISOString().slice(0, 10));
+  const weekKey = (d) => { const t = new Date(d + 'T00:00:00Z'); t.setUTCDate(t.getUTCDate() - ((t.getUTCDay() + 6) % 7)); return t.toISOString().slice(0, 10); };
+  const keyers = { day: (d) => d, week: weekKey, month: (d) => d.slice(0, 7) };
+  const firstSeen = new Map();
+  for (const v of [...views].sort((x, y) => String(x.created_at_ist).localeCompare(String(y.created_at_ist)))) if (!firstSeen.has(v.ip_hash)) firstSeen.set(v.ip_hash, istDay(v.created_at_ist));
+  const series = {};
+  for (const [g, key] of Object.entries(keyers)) {
+    const b = new Map();
+    for (const d of days_) b.set(key(d), { day: key(d), views: 0, visitors: new Set(), newVisitors: 0 });
+    for (const v of views) { const x = b.get(key(istDay(v.created_at_ist))); if (x) { x.views++; x.visitors.add(v.ip_hash); } }
+    for (const d of firstSeen.values()) { const x = b.get(key(d)); if (x) x.newVisitors++; }
+    series[g] = [...b.values()].map((x) => ({ ...x, visitors: x.visitors.size }));
   }
   const engage = events.filter((e) => e.event_type === 'engage');
   const secs = engage.map((e) => e.seconds).filter((n) => Number.isFinite(n));

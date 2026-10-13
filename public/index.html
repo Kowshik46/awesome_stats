@@ -7,7 +7,7 @@ header{display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:s
 h1{margin:0;font-size:22px}h1 small{display:block;color:var(--mu);font-size:13px;font-weight:400}
 .ctl{display:flex;gap:6px;align-items:center}.ctl button,.ctl a{background:var(--card);color:var(--mu);border:1px solid var(--line);border-radius:8px;padding:6px 12px;font:inherit;font-size:13px;cursor:pointer;text-decoration:none}
 .ctl button.on{background:var(--ac);color:#fff;border-color:var(--ac)}
-.grid{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));margin-bottom:14px}
+.tog{flex-wrap:wrap;margin-bottom:10px}.grid{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));margin-bottom:14px}
 .wide{grid-column:1/-1}.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px}
 .card h2{margin:0 0 12px;font-size:13px;font-weight:600;color:var(--mu);text-transform:uppercase;letter-spacing:.06em}
 .big{font-size:34px;font-weight:700;line-height:1.1}.sub{color:var(--mu);font-size:13px}
@@ -23,7 +23,7 @@ table{width:100%;border-collapse:collapse;font-size:13px}th,td{text-align:right;
 <div class="ctl" id="range"><button data-d="7">7d</button><button data-d="30" class="on">30d</button><button data-d="90">90d</button><button data-d="365">1y</button><a href="/logout">Log out</a></div></header>
 <p id="err">Could not load stats. Check the Render logs.</p>
 <div class="grid" id="kpi"></div>
-<div class="grid"><div class="card wide"><h2>Visitors per day (IST)</h2><div id="line"></div></div></div>
+<div class="grid"><div class="card wide"><h2>Traffic over time (IST)</h2><div class="ctl tog" id="tog"><button data-k="g" data-v="day" class="on">Daily</button><button data-k="g" data-v="week">Weekly</button><button data-k="g" data-v="month">Monthly</button><span style="width:10px"></span><button data-k="m" data-v="visitors" class="on">Visitors</button><button data-k="m" data-v="views">Page views</button><span style="width:10px"></span><button data-k="c" data-v="per" class="on">Per period</button><button data-k="c" data-v="cum">Running total</button></div><div id="line"></div></div></div>
 <div class="grid"><div class="card wide"><h2>Fun facts</h2><div class="fun" id="fun"></div></div></div>
 <div class="grid"><div class="card"><h2>Top pages</h2><div id="pages"></div></div><div class="card"><h2>Referrers / sources</h2><div id="refs"></div></div><div class="card"><h2>LinkedIn campaigns (UTM)</h2><div id="camps"></div></div></div>
 <div class="grid"><div class="card wide"><h2>Claude Code articles compared</h2><div id="arts"></div></div></div>
@@ -36,21 +36,25 @@ const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',
 const fmtS=s=>s>=60?Math.floor(s/60)+'m '+(s%60)+'s':s+'s';
 const hr=h=>(h%12||12)+(h<12?' AM':' PM');
 function bars(id,list){const max=Math.max(1,...list.map(x=>x.count));$(id).innerHTML=list.length?list.map(x=>`<div class="row"><span class="n" title="${esc(x.name)}">${esc(x.name)}</span><span class="c">${x.count}</span><div class="bar"><i style="width:${x.count/max*100}%"></i></div></div>`).join(''):'<div class="empty">No data yet</div>'}
-function line(s){const W=1000,H=240,p=30,max=Math.max(1,...s.map(d=>d.views)),n=s.length,x=i=>p+i*(W-2*p)/Math.max(1,n-1),y=v=>H-p-v/max*(H-2*p);
-const path=k=>s.map((d,i)=>(i?'L':'M')+x(i).toFixed(1)+' '+y(d[k]).toFixed(1)).join('');
-const step=Math.ceil(n/8);
-$('line').innerHTML=`<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Views and visitors per day"><g stroke="#24243a">${[0,.5,1].map(f=>`<line x1="${p}" x2="${W-p}" y1="${y(max*f)}" y2="${y(max*f)}"/>`).join('')}</g>
+const opt={g:'day',m:'visitors',c:'per'};let last=null;
+function line(){const raw=last.series[opt.g];let acc=0;
+const s=raw.map(d=>{const v=opt.m==='visitors'&&opt.c==='cum'?(acc+=d.newVisitors):opt.c==='cum'?(acc+=d.views):(opt.m==='visitors'?d.visitors:d.views);return{day:d.day,v}});
+const W=1000,H=240,p=30,max=Math.max(1,...s.map(d=>d.v)),n=s.length,x=i=>p+i*(W-2*p)/Math.max(1,n-1),y=v=>H-p-v/max*(H-2*p);
+const col=opt.m==='visitors'?'#818cf8':'#f472b6',step=Math.ceil(n/8),label=opt.m==='visitors'?'visitors':'views',lab=d=>opt.g==='month'?d:d.slice(5);
+const path=s.map((d,i)=>(i?'L':'M')+x(i).toFixed(1)+' '+y(d.v).toFixed(1)).join('');
+$('line').innerHTML=`<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${label} over time"><g stroke="#24243a">${[0,.5,1].map(f=>`<line x1="${p}" x2="${W-p}" y1="${y(max*f)}" y2="${y(max*f)}"/>`).join('')}</g>
 <text x="4" y="${y(max)+4}" fill="#9a9ab3" font-size="12">${max}</text>
-<path d="${path('views')}" fill="none" stroke="#f472b6" stroke-width="2.5"/><path d="${path('visitors')}" fill="none" stroke="#818cf8" stroke-width="2.5"/>
-${s.map((d,i)=>`<circle cx="${x(i)}" cy="${y(d.visitors)}" r="3.5" fill="#818cf8"><title>${d.day}: ${d.visitors} visitors, ${d.views} views</title></circle>`).join('')}
-${s.map((d,i)=>i%step===0?`<text x="${x(i)}" y="${H-8}" fill="#9a9ab3" font-size="12" text-anchor="middle">${d.day.slice(5)}</text>`:'').join('')}</svg>
-<div class="sub"><span style="color:#818cf8">●</span> unique visitors &nbsp; <span style="color:#f472b6">●</span> page views</div>`}
+<path d="${path}" fill="none" stroke="${col}" stroke-width="2.5"/>
+${s.map((d,i)=>`<circle cx="${x(i)}" cy="${y(d.v)}" r="3.5" fill="${col}"><title>${d.day}: ${d.v} ${label}</title></circle>`).join('')}
+${s.map((d,i)=>i%step===0?`<text x="${x(i)}" y="${H-8}" fill="#9a9ab3" font-size="12" text-anchor="middle">${lab(d.day)}</text>`:'').join('')}</svg>
+<div class="sub">${opt.c==='cum'?'Running total of ':''}${label}${opt.g==='week'?' per week (week starts Monday)':opt.g==='month'?' per month':' per day'}. Unique visitors are counted once per period.</div>`}
+$('tog').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;opt[b.dataset.k]=b.dataset.v;document.querySelectorAll('#tog button').forEach(x=>{if(x.dataset.k===b.dataset.k)x.classList.toggle('on',x===b)});if(last)line()});
 function hours(h){const max=Math.max(1,...h),W=1000,H=160,bw=W/24;
 $('hrs').innerHTML=`<svg viewBox="0 0 ${W} ${H+20}">${h.map((v,i)=>`<rect x="${i*bw+3}" y="${H-v/max*H}" width="${bw-6}" height="${v/max*H}" rx="3" fill="${v===max&&v>0?'#f472b6':'#6366f1'}"><title>${hr(i)}: ${v} views</title></rect>${i%3===0?`<text x="${i*bw+bw/2}" y="${H+15}" fill="#9a9ab3" font-size="12" text-anchor="middle">${hr(i)}</text>`:''}`).join('')}</svg>`}
 function render(d){
 $('when').textContent=`Last ${d.days} days · updated ${new Date(d.generatedAt).toLocaleString()}`;
 const t=d.totals;$('kpi').innerHTML=[['Unique visitors',t.visitors,'people (hashed)'],['Page views',t.views,d.fun.viewsPerVisitor+' per visitor'],['Returning visitors',t.returning,'came back at least once'],['Countries',t.countries,d.fun.topCountry?'top: '+esc(d.fun.topCountry):'']].map(k=>`<div class="card"><h2>${k[0]}</h2><div class="big">${k[1]}</div><div class="sub">${k[2]}</div></div>`).join('');
-line(d.series);hours(d.hours);
+last=d;line();hours(d.hours);
 const f=d.fun,e=d.engagement;
 $('fun').innerHTML=[['Busiest hour (IST)',f.busiestHourIST==null?'–':hr(f.busiestHourIST)],['Busiest day',f.busiestDay?f.busiestDay.day.slice(5)+' · '+f.busiestDay.views+' views':'–'],['Full reads (90%+ scroll)',e.fullReads+' of '+e.sessions],['Median time on page',fmtS(e.medianSeconds)]].map(x=>`<div>${x[0]}<b>${x[1]}</b></div>`).join('');
 bars('pages',d.topPages);bars('refs',d.referrers);bars('camps',d.campaigns);bars('ctry',d.countries);bars('dev',d.devices);bars('br',d.browsers);bars('clk',d.clicks);

@@ -5,5 +5,5 @@ const r = compute([v({}), v({ ip_hash: 'b', utm_source: 'linkedin', utm_campaign
   [{ path: '/claude-code/day-02/', event_type: 'engage', seconds: 60, scroll_pct: 100 }], 7);
 assert.equal(r.totals.views, 2); assert.equal(r.totals.visitors, 2);
 assert.equal(r.fun.busiestHourIST, 14); assert.equal(r.campaigns[0].name, 'day-02');
-assert.equal(r.articles[0].avgSeconds, 60); assert.equal(r.series.length, 7);
+assert.equal(r.articles[0].avgSeconds, 60); assert.equal(r.series.day.length, 7); assert.equal(r.series.day.reduce((a, d) => a + d.newVisitors, 0), 2); assert.ok(r.series.week.length >= 1 && r.series.month.length >= 1);
 console.log('ok');
