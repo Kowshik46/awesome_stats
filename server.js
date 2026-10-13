@@ -39,7 +39,7 @@ async function stats(days) {
   const since = new Date(Date.now() - days * 864e5).toISOString();
   const [views, events] = await Promise.all([
     fetchAll('page_views', 'id,created_at_ist,ip_hash,country,path,referrer,browser,device_type,language,utm_source,utm_campaign', since),
-    fetchAll('page_events', 'id,path,event_type,seconds,scroll_pct,target', since),
+    fetchAll('page_events', 'id,created_at_ist,path,event_type,seconds,scroll_pct,target', since),
   ]);
   const v = { ...compute(views, events, days), generatedAt: new Date().toISOString(), days };
   cache.set(days, { t: Date.now(), v });

@@ -10,6 +10,7 @@ const istDay = (s) => String(s).slice(0, 10);
 const istHour = (s) => Number(String(s).slice(11, 13));
 
 function compute(views, events, days) {
+  const allViews = views, allEvents = events;
   views = views.filter((v) => !EXCLUDED(v.path));
   events = events.filter((e) => !EXCLUDED(e.path));
   const uniq = new Set(views.map((v) => v.ip_hash));
@@ -72,7 +73,7 @@ function compute(views, events, days) {
     series, hours, topPages: top(pages), countries: top(countries), referrers: top(refs), campaigns: top(campaigns),
     devices: top(devices), browsers: top(browsers), languages: top(langs, 5),
     engagement: { avgSeconds: avg(secs), medianSeconds: median(secs), avgScroll: avg(scrolls), fullReads: scrolls.filter((n) => n >= 90).length, sessions: scrolls.length },
-    clicks: top(clicks, 8), articles,
+    clicks: top(clicks, 8), articles, raw: rawRows(allViews, allEvents),
     fun: {
       busiestHourIST: views.length ? peak : null,
       busiestDay: busiestDay ? { day: busiestDay[0], views: busiestDay[1] } : null,
@@ -81,4 +82,20 @@ function compute(views, events, days) {
     },
   };
 }
-module.exports = { compute };
+
+// Compact rows for client-side charting (visitor ids are per-response indexes, not hashes).
+function rawRows(views, events) {
+  const ids = new Map();
+  const id = (h) => (ids.has(h) ? ids.get(h) : (ids.set(h, ids.size), ids.size - 1));
+  const vs = views.filter((v) => !EXCLUDED(v.path)).sort((a, b) => String(a.created_at_ist).localeCompare(String(b.created_at_ist)));
+  const seen = new Set();
+  const out = vs.map((v) => {
+    const u = id(v.ip_hash), first = !seen.has(u);
+    seen.add(u);
+    return { d: istDay(v.created_at_ist), u, p: v.path, c: v.country || 'Unknown', s: v.utm_source ? `${v.utm_source} (utm)` : host(v.referrer), k: v.utm_campaign || '', f: first ? 1 : 0 };
+  });
+  const ev = events.filter((e) => !EXCLUDED(e.path) && e.event_type === 'engage' && e.scroll_pct >= 90 && e.created_at_ist)
+    .map((e) => ({ d: istDay(e.created_at_ist), p: e.path }));
+  return { views: out, reads: ev };
+}
+module.exports = { compute, rawRows };
