@@ -1,0 +1,63 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>Site stats</title>
+<style>
+:root{--bg:#0a0a0f;--card:#13131c;--line:#24243a;--tx:#e8e8f0;--mu:#9a9ab3;--ac:#6366f1;--ac2:#818cf8;--pk:#f472b6}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--tx);font:15px/1.5 Inter,system-ui,sans-serif}
+.w{max-width:1100px;margin:0 auto;padding:20px 16px 60px}
+header{display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between;margin-bottom:20px}
+h1{margin:0;font-size:22px}h1 small{display:block;color:var(--mu);font-size:13px;font-weight:400}
+.ctl{display:flex;gap:6px;align-items:center}.ctl button,.ctl a{background:var(--card);color:var(--mu);border:1px solid var(--line);border-radius:8px;padding:6px 12px;font:inherit;font-size:13px;cursor:pointer;text-decoration:none}
+.ctl button.on{background:var(--ac);color:#fff;border-color:var(--ac)}
+.grid{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));margin-bottom:14px}
+.wide{grid-column:1/-1}.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px}
+.card h2{margin:0 0 12px;font-size:13px;font-weight:600;color:var(--mu);text-transform:uppercase;letter-spacing:.06em}
+.big{font-size:34px;font-weight:700;line-height:1.1}.sub{color:var(--mu);font-size:13px}
+.row{display:grid;grid-template-columns:minmax(0,1fr) 44px;gap:8px;font-size:13px;margin:7px 0}
+.row .n{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.row .c{text-align:right;color:var(--mu)}
+.bar{grid-column:1/-1;height:5px;border-radius:3px;background:#1d1d2e;overflow:hidden}.bar i{display:block;height:100%;background:linear-gradient(90deg,var(--ac),var(--pk))}
+svg{width:100%;height:auto;display:block}.fun{display:grid;gap:10px;grid-template-columns:repeat(auto-fit,minmax(180px,1fr))}
+.fun div{background:#0f0f18;border:1px solid var(--line);border-radius:10px;padding:12px}.fun b{display:block;font-size:20px;color:var(--ac2)}
+table{width:100%;border-collapse:collapse;font-size:13px}th,td{text-align:right;padding:6px 4px;border-bottom:1px solid var(--line)}th:first-child,td:first-child{text-align:left}th{color:var(--mu);font-weight:500}
+.empty{color:var(--mu);font-size:13px}#err{color:#f87171;display:none}
+</style></head><body><div class="w">
+<header><h1>Site stats<small id="when">Loading…</small></h1>
+<div class="ctl" id="range"><button data-d="7">7d</button><button data-d="30" class="on">30d</button><button data-d="90">90d</button><button data-d="365">1y</button><a href="/logout">Log out</a></div></header>
+<p id="err">Could not load stats. Check the Render logs.</p>
+<div class="grid" id="kpi"></div>
+<div class="grid"><div class="card wide"><h2>Visitors per day (IST)</h2><div id="line"></div></div></div>
+<div class="grid"><div class="card wide"><h2>Fun facts</h2><div class="fun" id="fun"></div></div></div>
+<div class="grid"><div class="card"><h2>Top pages</h2><div id="pages"></div></div><div class="card"><h2>Referrers / sources</h2><div id="refs"></div></div><div class="card"><h2>LinkedIn campaigns (UTM)</h2><div id="camps"></div></div></div>
+<div class="grid"><div class="card wide"><h2>Claude Code articles compared</h2><div id="arts"></div></div></div>
+<div class="grid"><div class="card"><h2>Countries</h2><div id="ctry"></div></div><div class="card"><h2>Devices</h2><div id="dev"></div></div><div class="card"><h2>Browsers</h2><div id="br"></div></div></div>
+<div class="grid"><div class="card wide"><h2>Busiest hours (IST)</h2><div id="hrs"></div></div></div>
+<div class="grid"><div class="card"><h2>Reading time and scroll</h2><div id="eng"></div></div><div class="card"><h2>Outbound clicks</h2><div id="clk"></div></div></div>
+</div><script>
+const $=id=>document.getElementById(id);
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const fmtS=s=>s>=60?Math.floor(s/60)+'m '+(s%60)+'s':s+'s';
+const hr=h=>(h%12||12)+(h<12?' AM':' PM');
+function bars(id,list){const max=Math.max(1,...list.map(x=>x.count));$(id).innerHTML=list.length?list.map(x=>`<div class="row"><span class="n" title="${esc(x.name)}">${esc(x.name)}</span><span class="c">${x.count}</span><div class="bar"><i style="width:${x.count/max*100}%"></i></div></div>`).join(''):'<div class="empty">No data yet</div>'}
+function line(s){const W=1000,H=240,p=30,max=Math.max(1,...s.map(d=>d.views)),n=s.length,x=i=>p+i*(W-2*p)/Math.max(1,n-1),y=v=>H-p-v/max*(H-2*p);
+const path=k=>s.map((d,i)=>(i?'L':'M')+x(i).toFixed(1)+' '+y(d[k]).toFixed(1)).join('');
+const step=Math.ceil(n/8);
+$('line').innerHTML=`<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Views and visitors per day"><g stroke="#24243a">${[0,.5,1].map(f=>`<line x1="${p}" x2="${W-p}" y1="${y(max*f)}" y2="${y(max*f)}"/>`).join('')}</g>
+<text x="4" y="${y(max)+4}" fill="#9a9ab3" font-size="12">${max}</text>
+<path d="${path('views')}" fill="none" stroke="#f472b6" stroke-width="2.5"/><path d="${path('visitors')}" fill="none" stroke="#818cf8" stroke-width="2.5"/>
+${s.map((d,i)=>`<circle cx="${x(i)}" cy="${y(d.visitors)}" r="3.5" fill="#818cf8"><title>${d.day}: ${d.visitors} visitors, ${d.views} views</title></circle>`).join('')}
+${s.map((d,i)=>i%step===0?`<text x="${x(i)}" y="${H-8}" fill="#9a9ab3" font-size="12" text-anchor="middle">${d.day.slice(5)}</text>`:'').join('')}</svg>
+<div class="sub"><span style="color:#818cf8">●</span> unique visitors &nbsp; <span style="color:#f472b6">●</span> page views</div>`}
+function hours(h){const max=Math.max(1,...h),W=1000,H=160,bw=W/24;
+$('hrs').innerHTML=`<svg viewBox="0 0 ${W} ${H+20}">${h.map((v,i)=>`<rect x="${i*bw+3}" y="${H-v/max*H}" width="${bw-6}" height="${v/max*H}" rx="3" fill="${v===max&&v>0?'#f472b6':'#6366f1'}"><title>${hr(i)}: ${v} views</title></rect>${i%3===0?`<text x="${i*bw+bw/2}" y="${H+15}" fill="#9a9ab3" font-size="12" text-anchor="middle">${hr(i)}</text>`:''}`).join('')}</svg>`}
+function render(d){
+$('when').textContent=`Last ${d.days} days · updated ${new Date(d.generatedAt).toLocaleString()}`;
+const t=d.totals;$('kpi').innerHTML=[['Unique visitors',t.visitors,'people (hashed)'],['Page views',t.views,d.fun.viewsPerVisitor+' per visitor'],['Returning visitors',t.returning,'came back at least once'],['Countries',t.countries,d.fun.topCountry?'top: '+esc(d.fun.topCountry):'']].map(k=>`<div class="card"><h2>${k[0]}</h2><div class="big">${k[1]}</div><div class="sub">${k[2]}</div></div>`).join('');
+line(d.series);hours(d.hours);
+const f=d.fun,e=d.engagement;
+$('fun').innerHTML=[['Busiest hour (IST)',f.busiestHourIST==null?'–':hr(f.busiestHourIST)],['Busiest day',f.busiestDay?f.busiestDay.day.slice(5)+' · '+f.busiestDay.views+' views':'–'],['Full reads (90%+ scroll)',e.fullReads+' of '+e.sessions],['Median time on page',fmtS(e.medianSeconds)]].map(x=>`<div>${x[0]}<b>${x[1]}</b></div>`).join('');
+bars('pages',d.topPages);bars('refs',d.referrers);bars('camps',d.campaigns);bars('ctry',d.countries);bars('dev',d.devices);bars('br',d.browsers);bars('clk',d.clicks);
+$('arts').innerHTML=d.articles.length?`<table><tr><th>Article</th><th>Views</th><th>Visitors</th><th>Avg time</th><th>Avg scroll</th></tr>${d.articles.map(a=>`<tr><td>${esc(a.path)}</td><td>${a.views}</td><td>${a.visitors}</td><td>${fmtS(a.avgSeconds)}</td><td>${a.avgScroll}%</td></tr>`).join('')}</table>`:'<div class="empty">No articles yet</div>';
+$('eng').innerHTML=`<div class="big">${fmtS(e.avgSeconds)}</div><div class="sub">average time on page (median ${fmtS(e.medianSeconds)})</div><div class="big" style="margin-top:12px">${e.avgScroll}%</div><div class="sub">average scroll depth</div>`}
+let days=30;
+async function load(){try{const r=await fetch('/api/stats?days='+days);if(r.status===401)return location.href='/login';render(await r.json());$('err').style.display='none'}catch(x){$('err').style.display='block'}}
+$('range').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;days=+b.dataset.d;document.querySelectorAll('#range button').forEach(x=>x.classList.toggle('on',x===b));load()});
+load();
+</script></body></html>

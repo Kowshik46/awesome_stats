@@ -1,0 +1,18 @@
+services:
+  - type: web
+    name: site-stats-dashboard
+    runtime: node
+    plan: free
+    buildCommand: "echo no build step"
+    startCommand: node server.js
+    healthCheckPath: /healthz
+
+    envVars:
+      - key: SUPABASE_URL
+        sync: false   # https://mytaeovzlriyrqnydaas.supabase.co
+      - key: SUPABASE_SERVICE_KEY
+        sync: false   # service_role key, set in the Render dashboard only
+      - key: ADMIN_PASSWORD
+        sync: false   # the password you will log in with
+      - key: SESSION_SECRET
+        generateValue: true

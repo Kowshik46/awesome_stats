@@ -1,0 +1,85 @@
+const http = require('http');
+const fs = require('fs');
+const path = require('path');
+const crypto = require('crypto');
+const { compute } = require('./stats');
+
+const { SUPABASE_URL, SUPABASE_SERVICE_KEY, ADMIN_PASSWORD, SESSION_SECRET } = process.env;
+const PORT = process.env.PORT || 3000;
+for (const [k, v] of Object.entries({ SUPABASE_URL, SUPABASE_SERVICE_KEY, ADMIN_PASSWORD, SESSION_SECRET }))
+  if (!v) { console.error(`Missing env var ${k}`); process.exit(1); }
+
+const sign = (s) => crypto.createHmac('sha256', SESSION_SECRET).update(s).digest('hex');
+const safeEq = (a, b) => { const x = Buffer.from(a), y = Buffer.from(b); return x.length === y.length && crypto.timingSafeEqual(x, y); };
+const makeToken = () => { const exp = Date.now() + 7 * 864e5; return `${exp}.${sign(String(exp))}`; };
+const validToken = (t) => { const [exp, sig] = String(t || '').split('.'); return !!sig && Number(exp) > Date.now() && safeEq(sig, sign(exp)); };
+const cookieOf = (req) => Object.fromEntries((req.headers.cookie || '').split(';').map((c) => c.trim().split(/=(.*)/s).slice(0, 2)));
+
+// Login throttle: 5 failures per IP per 15 minutes.
+const fails = new Map();
+const blocked = (ip) => (fails.get(ip) || []).filter((t) => Date.now() - t < 9e5).length >= 5;
+
+async function fetchAll(table, columns, sinceIso) {
+  const rows = [];
+  for (let from = 0; from < 200000; from += 1000) {
+    const url = `${SUPABASE_URL}/rest/v1/${table}?select=${columns}&created_at=gte.${encodeURIComponent(sinceIso)}&order=id.asc`;
+    const r = await fetch(url, { headers: { apikey: SUPABASE_SERVICE_KEY, Authorization: `Bearer ${SUPABASE_SERVICE_KEY}`, Range: `${from}-${from + 999}` } });
+    if (!r.ok) throw new Error(`Supabase ${table}: ${r.status}`);
+    const page = await r.json();
+    rows.push(...page);
+    if (page.length < 1000) break;
+  }
+  return rows;
+}
+
+let cache = new Map();
+async function stats(days) {
+  const hit = cache.get(days);
+  if (hit && Date.now() - hit.t < 30e3) return hit.v;
+  const since = new Date(Date.now() - days * 864e5).toISOString();
+  const [views, events] = await Promise.all([
+    fetchAll('page_views', 'id,created_at_ist,ip_hash,country,path,referrer,browser,device_type,language,utm_source,utm_campaign', since),
+    fetchAll('page_events', 'id,path,event_type,seconds,scroll_pct,target', since),
+  ]);
+  const v = { ...compute(views, events, days), generatedAt: new Date().toISOString(), days };
+  cache.set(days, { t: Date.now(), v });
+  return v;
+}
+
+const send = (res, code, body, headers = {}) => {
+  res.writeHead(code, { 'X-Content-Type-Options': 'nosniff', 'Cache-Control': 'no-store', 'X-Robots-Tag': 'noindex', 'Referrer-Policy': 'no-referrer', ...headers });
+  res.end(body);
+};
+const file = (res, name, type) => send(res, 200, fs.readFileSync(path.join(__dirname, 'public', name)), { 'Content-Type': type });
+
+http.createServer(async (req, res) => {
+  const url = new URL(req.url, 'http://x');
+  const ip = (req.headers['x-forwarded-for'] || req.socket.remoteAddress || '').split(',')[0].trim();
+  try {
+    if (url.pathname === '/healthz') return send(res, 200, 'ok');
+    if (url.pathname === '/login' && req.method === 'POST') {
+      if (blocked(ip)) return send(res, 429, 'Too many attempts. Try again later.');
+      let body = ''; for await (const c of req) { body += c; if (body.length > 1e4) break; }
+      const pw = new URLSearchParams(body).get('password') || '';
+      if (safeEq(sign(pw), sign(ADMIN_PASSWORD))) {
+        return send(res, 302, '', { Location: '/', 'Set-Cookie': `session=${makeToken()}; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=604800` });
+      }
+      fails.set(ip, [...(fails.get(ip) || []), Date.now()]);
+      return send(res, 302, '', { Location: '/login?e=1' });
+    }
+    if (url.pathname === '/login') return file(res, 'login.html', 'text/html; charset=utf-8');
+    if (url.pathname === '/logout') return send(res, 302, '', { Location: '/login', 'Set-Cookie': 'session=; Max-Age=0; Path=/' });
+    if (!validToken(cookieOf(req).session)) {
+      return url.pathname.startsWith('/api/') ? send(res, 401, '{"error":"auth"}', { 'Content-Type': 'application/json' }) : send(res, 302, '', { Location: '/login' });
+    }
+    if (url.pathname === '/api/stats') {
+      const days = [7, 30, 90, 365].includes(Number(url.searchParams.get('days'))) ? Number(url.searchParams.get('days')) : 30;
+      return send(res, 200, JSON.stringify(await stats(days)), { 'Content-Type': 'application/json' });
+    }
+    if (url.pathname === '/') return file(res, 'index.html', 'text/html; charset=utf-8');
+    send(res, 404, 'Not found');
+  } catch (e) {
+    console.error(e);
+    send(res, 500, '{"error":"server"}', { 'Content-Type': 'application/json' });
+  }
+}).listen(PORT, () => console.log(`Dashboard on :${PORT}`));
