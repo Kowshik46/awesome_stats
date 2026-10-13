@@ -17,6 +17,10 @@ h1{margin:0;font-size:22px}h1 small{display:block;color:var(--mu);font-size:13px
 svg{width:100%;height:auto;display:block}.fun{display:grid;gap:10px;grid-template-columns:repeat(auto-fit,minmax(180px,1fr))}
 .fun div{background:#0f0f18;border:1px solid var(--line);border-radius:10px;padding:12px}.fun b{display:block;font-size:20px;color:var(--ac2)}
 table{width:100%;border-collapse:collapse;font-size:13px}th,td{text-align:right;padding:6px 4px;border-bottom:1px solid var(--line)}th:first-child,td:first-child{text-align:left}th{color:var(--mu);font-weight:500}
+.cw{position:relative}.tip{position:absolute;pointer-events:none;opacity:0;background:#0f0f18ee;border:1px solid var(--line);border-radius:10px;padding:8px 10px;font-size:13px;white-space:nowrap;transition:opacity .12s;box-shadow:0 8px 24px #0008;z-index:2}.tip .tt{border-top:1px solid var(--line);margin-top:4px;padding-top:4px;color:var(--mu)}.tip b{color:var(--tx)}
+.lgi{background:none;border:0;color:var(--mu);font:inherit;font-size:13px;cursor:pointer;padding:2px 4px;border-radius:6px}.lgi:hover{background:#1d1d2e}.lgi.off{opacity:.4;text-decoration:line-through}
+.ln{stroke-dasharray:1;stroke-dashoffset:1;animation:dr 1s ease forwards}@keyframes dr{to{stroke-dashoffset:0}}@media(prefers-reduced-motion:reduce){.ln{animation:none;stroke-dashoffset:0}}
+.card{transition:border-color .15s,transform .15s}.card:hover{border-color:#3b3b5c}
 .empty{color:var(--mu);font-size:13px}#err{color:#f87171;display:none}
 </style></head><body><div class="w">
 <header><h1>Site stats<small id="when">Loading…</small></h1>
@@ -47,18 +51,34 @@ function lineData(m,rows,reads,keys){const k=keyer[opt.g],idx=new Map(keys.map((
  else{const sets=keys.map(()=>new Set());rows.forEach(r=>{const i=idx.get(k(r.d));if(i==null)return;if(m==='views')val[i]++;else if(m==='new'){if(r.f)val[i]++}else sets[i].add(r.u)});
   if(m==='visitors'){if(opt.c==='cum'){const all=new Set();sets.forEach((st,i)=>{st.forEach(u=>all.add(u));val[i]=all.size})}else sets.forEach((st,i)=>val[i]=st.size);return val}}
  if(opt.c==='cum'){let a=0;return val.map(v=>a+=v)}return val}
+const hid=new Set();
 function line(){const keys=last.series[opt.g].map(d=>d.day),R=last.raw;let L=[];
  const ms=[...opt.mets];
  if(!opt.split){ms.forEach(m=>L.push({n:MN[m],v:lineData(m,R.views,R.reads,keys)}))}
  else{const f=opt.split,cnt=new Map();R.views.forEach(r=>cnt.set(r[f],(cnt.get(r[f])||0)+1));
   const vals=[...cnt.entries()].sort((a,b)=>b[1]-a[1]).slice(0,5).map(x=>x[0]);const m=ms[0]||'visitors';
   vals.forEach(val=>L.push({n:(val||'(none)'),v:lineData(m,R.views.filter(r=>r[f]===val),m==='reads'&&f==='p'?R.reads.filter(r=>r.p===val):[],keys)}));}
- const W=1000,H=240,p=30,n=keys.length,max=Math.max(1,...L.flatMap(l=>l.v)),x=i=>p+i*(W-2*p)/Math.max(1,n-1),y=v=>H-p-v/max*(H-2*p),step=Math.ceil(n/8),lab=d=>opt.g==='month'?d:d.slice(5);
- $('line').innerHTML=`<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Traffic over time"><g stroke="#24243a">${[0,.5,1].map(f=>`<line x1="${p}" x2="${W-p}" y1="${y(max*f)}" y2="${y(max*f)}"/>`).join('')}</g><text x="4" y="${y(max)+4}" fill="#9a9ab3" font-size="12">${max}</text>
- ${L.map((l,j)=>`<path d="${l.v.map((v,i)=>(i?'L':'M')+x(i).toFixed(1)+' '+y(v).toFixed(1)).join('')}" fill="none" stroke="${COL[j%6]}" stroke-width="2.5"/>${l.v.map((v,i)=>`<circle cx="${x(i)}" cy="${y(v)}" r="3" fill="${COL[j%6]}"><title>${esc(l.n)} · ${keys[i]}: ${v}</title></circle>`).join('')}`).join('')}
- ${keys.map((d,i)=>i%step===0?`<text x="${x(i)}" y="${H-8}" fill="#9a9ab3" font-size="12" text-anchor="middle">${lab(d)}</text>`:'').join('')}</svg>
- <div class="lg">${L.map((l,j)=>`<span><span style="color:${COL[j%6]}">●</span> ${esc(l.n)}</span>`).join('')}</div>
- <div class="sub">${opt.split?'One line per value of the chosen split, using the first ticked metric.':''}${opt.split&&ms[0]==='reads'&&opt.split!=='p'?' Full reads can only be split by page, so those lines are empty.':''} Visitors are counted once per period.</div>`}
+ const W=1000,H=240,p=30,n=keys.length,max=Math.max(1,...L.filter((l,j)=>!hid.has(l.n)).flatMap(l=>l.v),1),x=i=>p+i*(W-2*p)/Math.max(1,n-1),y=v=>H-p-v/max*(H-2*p),step=Math.ceil(n/8),lab=d=>opt.g==='month'?d:d.slice(5);
+ const smooth=v=>v.map((val,i)=>{const X=x(i).toFixed(1),Y=y(val).toFixed(1);if(!i)return'M'+X+' '+Y;const px=x(i-1),py=y(v[i-1]),cx=(px+x(i))/2;return`C${cx.toFixed(1)} ${py.toFixed(1)} ${cx.toFixed(1)} ${Y} ${X} ${Y}`}).join('');
+ const vis=L.map((l,j)=>({l,j})).filter(o=>!hid.has(o.l.n));
+ $('line').innerHTML=`<div class="cw"><svg id="csv" viewBox="0 0 ${W} ${H}" role="img" aria-label="Traffic over time"><defs>${COL.map((c,j)=>`<linearGradient id="g${j}" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="${c}" stop-opacity=".28"/><stop offset="1" stop-color="${c}" stop-opacity="0"/></linearGradient>`).join('')}</defs>
+ <g stroke="#24243a">${[0,.25,.5,.75,1].map(f=>`<line x1="${p}" x2="${W-p}" y1="${y(max*f)}" y2="${y(max*f)}"/>`).join('')}</g>${[0,.5,1].map(f=>`<text x="${p-6}" y="${y(max*f)+4}" fill="#9a9ab3" font-size="11" text-anchor="end">${Math.round(max*f)}</text>`).join('')}
+ ${vis.length===1?`<path d="${smooth(vis[0].l.v)} L${x(n-1)} ${y(0)} L${x(0)} ${y(0)}Z" fill="url(#g${vis[0].j%6})" stroke="none"/>`:''}
+ ${vis.map(o=>`<path class="ln" pathLength="1" d="${smooth(o.l.v)}" fill="none" stroke="${COL[o.j%6]}" stroke-width="2.5" stroke-linecap="round"/>`).join('')}
+ ${keys.map((d,i)=>i%step===0?`<text x="${x(i)}" y="${H-8}" fill="#9a9ab3" font-size="12" text-anchor="middle">${lab(d)}</text>`:'').join('')}
+ <line id="cx" y1="${p/2}" y2="${H-p}" stroke="#6366f1" stroke-dasharray="4 4" opacity="0"/>${vis.map(o=>`<circle class="hd" r="5.5" fill="${COL[o.j%6]}" stroke="#0a0a0f" stroke-width="2" opacity="0"/>`).join('')}
+ <rect id="hit" x="0" y="0" width="${W}" height="${H}" fill="transparent"/></svg><div id="tip" class="tip"></div></div>
+ <div class="lg">${L.map((l,j)=>`<button class="lgi${hid.has(l.n)?' off':''}" data-n="${esc(l.n)}"><span style="color:${COL[j%6]}">●</span> ${esc(l.n)}</button>`).join('')}</div>
+ <div class="sub">${opt.split?'One line per value of the chosen split, using the first ticked metric. ':''}${opt.split&&ms[0]==='reads'&&opt.split!=='p'?'Full reads can only be split by page, so those lines are empty. ':''}Hover for details, click a legend item to hide or show it. Visitors are counted once per period.</div>`;
+ const svg=$('csv'),tip=$('tip'),cx=$('cx'),dots=[...svg.querySelectorAll('.hd')],wrap=svg.parentNode;
+ const move=ev=>{const r=svg.getBoundingClientRect(),px=(ev.clientX-r.left)/r.width*W;let i=Math.round((px-p)/((W-2*p)/Math.max(1,n-1)));i=Math.max(0,Math.min(n-1,i));
+  cx.setAttribute('x1',x(i));cx.setAttribute('x2',x(i));cx.setAttribute('opacity',1);dots.forEach((d,k)=>{d.setAttribute('cx',x(i));d.setAttribute('cy',y(vis[k].l.v[i]));d.setAttribute('opacity',1)});
+  const d=keys[i],nice=opt.g==='month'?d:opt.g==='week'?'Week of '+d:new Date(d+'T00:00:00Z').toLocaleDateString(undefined,{weekday:'short',day:'numeric',month:'short',timeZone:'UTC'});
+  tip.innerHTML=`<b>${nice}</b>`+vis.map(o=>`<div><span style="color:${COL[o.j%6]}">●</span> ${esc(o.l.n)} <b>${o.l.v[i]}</b></div>`).join('')+(vis.length>1?'<div class="tt">Total <b>'+vis.reduce((a,o)=>a+o.l.v[i],0)+'</b></div>':'');
+  tip.style.opacity=1;const wr=wrap.getBoundingClientRect(),tw=tip.offsetWidth;let lx=ev.clientX-wr.left+14;if(lx+tw>wr.width)lx=ev.clientX-wr.left-tw-14;tip.style.left=Math.max(0,lx)+'px';tip.style.top=Math.max(0,ev.clientY-wr.top-20)+'px'};
+ const out=()=>{tip.style.opacity=0;cx.setAttribute('opacity',0);dots.forEach(d=>d.setAttribute('opacity',0))};
+ $('hit').addEventListener('mousemove',move);$('hit').addEventListener('mouseleave',out);$('hit').addEventListener('touchmove',e=>move(e.touches[0]),{passive:true});$('hit').addEventListener('touchend',out)}
+$('line').addEventListener('click',e=>{const b=e.target.closest('.lgi');if(!b)return;const n=b.dataset.n;hid.has(n)?hid.delete(n):hid.add(n);line(true)});
 $('tog').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;opt[b.dataset.k]=b.dataset.v;document.querySelectorAll('#tog button').forEach(x=>{if(x.dataset.k===b.dataset.k)x.classList.toggle('on',x===b)});if(last)line()});
 $('mets').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;const m=b.dataset.m;if(opt.mets.has(m)){if(opt.mets.size>1)opt.mets.delete(m)}else opt.mets.add(m);b.classList.toggle('on',opt.mets.has(m));if(last)line()});
 $('split').addEventListener('change',e=>{opt.split=e.target.value;if(last)line()});
