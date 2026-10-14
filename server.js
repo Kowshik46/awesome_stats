@@ -69,7 +69,7 @@ http.createServer(async (req, res) => {
   const url = new URL(req.url, 'http://x');
   const ip = (req.headers['x-forwarded-for'] || req.socket.remoteAddress || '').split(',')[0].trim();
   try {
-    if (url.pathname === '/healthz') return send(res, 200, 'ok');
+    if (url.pathname === '/healthz') return send(res, 200, `ok ${(process.env.RENDER_GIT_COMMIT || 'local').slice(0, 7)} routes=visits`);
     if (url.pathname === '/login' && req.method === 'POST') {
       if (blocked(ip)) return send(res, 429, 'Too many attempts. Try again later.');
       let body = ''; for await (const c of req) { body += c; if (body.length > 1e4) break; }
