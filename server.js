@@ -2,7 +2,7 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
-const { compute } = require('./stats');
+const { compute, visitRows } = require('./stats');
 
 const { SUPABASE_URL, SUPABASE_SERVICE_KEY, ADMIN_PASSWORD, SESSION_SECRET } = process.env;
 const PORT = process.env.PORT || 3000;
@@ -30,6 +30,17 @@ async function fetchAll(table, columns, sinceIso) {
     if (page.length < 1000) break;
   }
   return rows;
+}
+
+const VIEW_COLS = 'id,created_at_ist,ip_hash,visitor_hash,country,path,referrer,browser,device_type,language,utm_source,utm_campaign';
+let vcache = new Map();
+async function visits(days) {
+  const hit = vcache.get(days);
+  if (hit && Date.now() - hit.t < 30e3) return hit.v;
+  const views = await fetchAll('page_views', VIEW_COLS, new Date(Date.now() - days * 864e5).toISOString());
+  const v = { rows: visitRows(views), days, generatedAt: new Date().toISOString() };
+  vcache.set(days, { t: Date.now(), v });
+  return v;
 }
 
 let cache = new Map();
@@ -78,6 +89,11 @@ http.createServer(async (req, res) => {
       const days = [7, 30, 90, 365].includes(Number(url.searchParams.get('days'))) ? Number(url.searchParams.get('days')) : 30;
       return send(res, 200, JSON.stringify(await stats(days)), { 'Content-Type': 'application/json' });
     }
+    if (url.pathname === '/api/visits') {
+      const days = [7, 30, 90, 365].includes(Number(url.searchParams.get('days'))) ? Number(url.searchParams.get('days')) : 30;
+      return send(res, 200, JSON.stringify(await visits(days)), { 'Content-Type': 'application/json' });
+    }
+    if (url.pathname === '/visits') return file(res, 'visits.html', 'text/html; charset=utf-8');
     if (url.pathname === '/') return file(res, 'index.html', 'text/html; charset=utf-8');
     send(res, 404, 'Not found');
   } catch (e) {

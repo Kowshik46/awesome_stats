@@ -100,4 +100,15 @@ function rawRows(views, events) {
     .map((e) => ({ d: istDay(e.created_at_ist), p: e.path }));
   return { views: out, reads: ev };
 }
-module.exports = { compute, rawRows };
+
+// One row per visit for the visits table; visitor is a short, stable label derived from the hash.
+function visitRows(views) {
+  const vs = views.filter((v) => !EXCLUDED(v.path)).sort((a, b) => String(a.created_at_ist).localeCompare(String(b.created_at_ist)));
+  const n = new Map();
+  return vs.map((v) => {
+    const w = who(v) || 'unknown', k = (n.get(w) || 0) + 1;
+    n.set(w, k);
+    return { t: String(v.created_at_ist).slice(0, 19), vid: w.slice(0, 6), visit: k, country: v.country || 'Unknown', path: v.path, src: v.utm_source ? `${v.utm_source} (utm)` : host(v.referrer), camp: v.utm_campaign || '', device: v.device_type || '', browser: v.browser || '', lang: v.language || '' };
+  }).reverse();
+}
+module.exports = { compute, rawRows, visitRows };
