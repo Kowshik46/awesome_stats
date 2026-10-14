@@ -1,4 +1,6 @@
 // Pure aggregation: turns raw page_views / page_events rows into dashboard numbers.
+// A person: the per-browser ID when present, else the IP hash (older rows).
+const who = (v) => v.visitor_hash || v.ip_hash;
 const EXCLUDED = (p) => !p || p === '/test' || p.startsWith('/test/');
 const top = (map, n = 10) =>
   [...map.entries()].sort((a, b) => b[1] - a[1]).slice(0, n).map(([name, count]) => ({ name, count }));
@@ -13,7 +15,7 @@ function compute(views, events, days) {
   const allViews = views, allEvents = events;
   views = views.filter((v) => !EXCLUDED(v.path));
   events = events.filter((e) => !EXCLUDED(e.path));
-  const uniq = new Set(views.map((v) => v.ip_hash));
+  const uniq = new Set(views.map(who));
   const perDay = new Map(), perDayUniq = new Map(), hours = new Array(24).fill(0);
   const pages = new Map(), countries = new Map(), refs = new Map(), campaigns = new Map();
   const devices = new Map(), browsers = new Map(), langs = new Map();
@@ -22,11 +24,11 @@ function compute(views, events, days) {
     const d = istDay(v.created_at_ist);
     bump(perDay, d);
     if (!perDayUniq.has(d)) perDayUniq.set(d, new Set());
-    perDayUniq.get(d).add(v.ip_hash);
+    perDayUniq.get(d).add(who(v));
     hours[istHour(v.created_at_ist)]++;
     bump(pages, v.path);
     if (!pageUniq.has(v.path)) pageUniq.set(v.path, new Set());
-    pageUniq.get(v.path).add(v.ip_hash);
+    pageUniq.get(v.path).add(who(v));
     bump(countries, v.country || 'Unknown');
     bump(refs, v.utm_source ? `${v.utm_source} (utm)` : host(v.referrer));
     if (v.utm_campaign) bump(campaigns, v.utm_campaign);
@@ -41,12 +43,12 @@ function compute(views, events, days) {
   const weekKey = (d) => { const t = new Date(d + 'T00:00:00Z'); t.setUTCDate(t.getUTCDate() - ((t.getUTCDay() + 6) % 7)); return t.toISOString().slice(0, 10); };
   const keyers = { day: (d) => d, week: weekKey, month: (d) => d.slice(0, 7) };
   const firstSeen = new Map();
-  for (const v of [...views].sort((x, y) => String(x.created_at_ist).localeCompare(String(y.created_at_ist)))) if (!firstSeen.has(v.ip_hash)) firstSeen.set(v.ip_hash, istDay(v.created_at_ist));
+  for (const v of [...views].sort((x, y) => String(x.created_at_ist).localeCompare(String(y.created_at_ist)))) if (!firstSeen.has(who(v))) firstSeen.set(who(v), istDay(v.created_at_ist));
   const series = {};
   for (const [g, key] of Object.entries(keyers)) {
     const b = new Map();
     for (const d of days_) b.set(key(d), { day: key(d), views: 0, visitors: new Set(), newVisitors: 0 });
-    for (const v of views) { const x = b.get(key(istDay(v.created_at_ist))); if (x) { x.views++; x.visitors.add(v.ip_hash); } }
+    for (const v of views) { const x = b.get(key(istDay(v.created_at_ist))); if (x) { x.views++; x.visitors.add(who(v)); } }
     for (const d of firstSeen.values()) { const x = b.get(key(d)); if (x) x.newVisitors++; }
     series[g] = [...b.values()].map((x) => ({ ...x, visitors: x.visitors.size }));
   }
@@ -67,7 +69,7 @@ function compute(views, events, days) {
   }));
   const peak = hours.indexOf(Math.max(...hours));
   const busiestDay = [...perDay.entries()].sort((a, b) => b[1] - a[1])[0];
-  const repeat = [...views.reduce((m, v) => (bump(m, v.ip_hash), m), new Map()).values()].filter((n) => n > 1).length;
+  const repeat = [...views.reduce((m, v) => (bump(m, who(v)), m), new Map()).values()].filter((n) => n > 1).length;
   return {
     totals: { views: views.length, visitors: uniq.size, returning: repeat, countries: countries.size },
     series, hours, topPages: top(pages), countries: top(countries), referrers: top(refs), campaigns: top(campaigns),
@@ -90,7 +92,7 @@ function rawRows(views, events) {
   const vs = views.filter((v) => !EXCLUDED(v.path)).sort((a, b) => String(a.created_at_ist).localeCompare(String(b.created_at_ist)));
   const seen = new Set();
   const out = vs.map((v) => {
-    const u = id(v.ip_hash), first = !seen.has(u);
+    const u = id(who(v)), first = !seen.has(u);
     seen.add(u);
     return { d: istDay(v.created_at_ist), u, p: v.path, c: v.country || 'Unknown', s: v.utm_source ? `${v.utm_source} (utm)` : host(v.referrer), k: v.utm_campaign || '', f: first ? 1 : 0 };
   });

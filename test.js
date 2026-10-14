@@ -7,4 +7,7 @@ assert.equal(r.totals.views, 2); assert.equal(r.totals.visitors, 2);
 assert.equal(r.fun.busiestHourIST, 14); assert.equal(r.campaigns[0].name, 'day-02');
 assert.equal(r.articles[0].avgSeconds, 60); assert.equal(r.series.day.length, 7); assert.equal(r.series.day.reduce((a, d) => a + d.newVisitors, 0), 2); assert.ok(r.series.week.length >= 1 && r.series.month.length >= 1);
 assert.equal(r.raw.views.length, 2); assert.equal(r.raw.views.filter((x) => x.f).length, 2);
+// Same person on two networks (different ip_hash, same visitor_hash) counts once; legacy rows fall back to ip_hash.
+const m = compute([v({ ip_hash: 'x', visitor_hash: 'p' }), v({ ip_hash: 'y', visitor_hash: 'p' }), v({ ip_hash: 'z' })], [], 7);
+assert.equal(m.totals.visitors, 2); assert.equal(m.totals.returning, 1);
 console.log('ok');

@@ -38,7 +38,7 @@ async function stats(days) {
   if (hit && Date.now() - hit.t < 30e3) return hit.v;
   const since = new Date(Date.now() - days * 864e5).toISOString();
   const [views, events] = await Promise.all([
-    fetchAll('page_views', 'id,created_at_ist,ip_hash,country,path,referrer,browser,device_type,language,utm_source,utm_campaign', since),
+    fetchAll('page_views', 'id,created_at_ist,ip_hash,visitor_hash,country,path,referrer,browser,device_type,language,utm_source,utm_campaign', since),
     fetchAll('page_events', 'id,created_at,path,event_type,seconds,scroll_pct,target', since),
   ]);
   // page_events only has UTC created_at; derive IST wall-clock like page_views.created_at_ist.
