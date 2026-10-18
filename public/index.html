@@ -103,4 +103,4 @@ let days=30;
 async function load(){try{const r=await fetch('/api/stats?days='+days);if(r.status===401)return location.href='/login';render(await r.json());$('err').style.display='none'}catch(x){$('err').style.display='block'}}
 $('range').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;days=+b.dataset.d;document.querySelectorAll('#range button').forEach(x=>x.classList.toggle('on',x===b));load()});
 load();
-</script></body></html>
+</script><script src="/session.js"></script></body></html>

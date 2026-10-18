@@ -99,6 +99,8 @@ http.createServer(async (req, res) => {
       return url.pathname.startsWith('/api/') ? send(res, 401, '{"error":"auth"}', { 'Content-Type': 'application/json' }) : send(res, 302, '', { Location: '/login' });
     }
     res.setHeader('Set-Cookie', sessionCookie(iat));
+    if (url.pathname === '/api/session') return send(res, 200, JSON.stringify({ started: iat, now: Date.now(), idleMs: IDLE_MS, maxMs: MAX_MS }), { 'Content-Type': 'application/json' });
+    if (url.pathname === '/session.js') return file(res, 'session.js', 'application/javascript; charset=utf-8');
     if (url.pathname === '/api/stats') {
       const days = [7, 30, 90, 365].includes(Number(url.searchParams.get('days'))) ? Number(url.searchParams.get('days')) : 30;
       return send(res, 200, JSON.stringify(await stats(days)), { 'Content-Type': 'application/json' });

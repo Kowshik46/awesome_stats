@@ -59,4 +59,4 @@ $('clr').onclick=()=>{['q','fc','fp','fs','fd','fr'].forEach(i=>$(i).value='');p
 $('csv').onclick=()=>{const r=filtered(),q=v=>'"'+String(v).replace(/"/g,'""')+'"';const csv=[COLS.map(c=>q(c[1])).join(','),...r.map(x=>COLS.map(([k])=>q(x[k])).join(','))].join('\n');const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));a.download='visits.csv';a.click()};
 $('range').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;days=+b.dataset.d;document.querySelectorAll('#range button').forEach(x=>x.classList.toggle('on',x===b));load()});
 load();
-</script></body></html>
+</script><script src="/session.js"></script></body></html>
