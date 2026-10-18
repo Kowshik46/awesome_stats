@@ -32,6 +32,10 @@ td:empty{display:none}tbody tr:hover{background:var(--card)}}
 <div class="card"><table><thead><tr id="hd"></tr></thead><tbody id="tb"></tbody></table><div id="em" class="empty" style="display:none">No visits match.</div></div>
 <div class="bar"><span id="cnt"></span><span class="ctl"><button id="prev">Prev</button><span id="pg"></span><button id="next">Next</button></span></div>
 </div><script>
+// Auto-lock after 15 minutes without interaction.
+let idleAt=Date.now();['click','keydown','touchstart','mousemove'].forEach(e=>addEventListener(e,()=>idleAt=Date.now(),{passive:true}));
+setInterval(()=>{if(Date.now()-idleAt>15*60e3)location.href='/logout'},30e3);
+document.addEventListener('visibilitychange',()=>{if(!document.hidden&&Date.now()-idleAt>15*60e3)location.href='/logout'});
 const $=id=>document.getElementById(id);
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const COLS=[['t','When (IST)'],['vid','Visitor'],['visit','Visit #'],['country','Country'],['path','Page'],['src','Source'],['camp','Campaign'],['device','Device'],['browser','Browser'],['lang','Lang']];

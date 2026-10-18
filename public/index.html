@@ -39,6 +39,10 @@ table{width:100%;border-collapse:collapse;font-size:13px}th,td{text-align:right;
 <div class="grid"><div class="card wide"><h2>Busiest hours (IST)</h2><div id="hrs"></div></div></div>
 <div class="grid"><div class="card"><h2>Reading time and scroll</h2><div id="eng"></div></div><div class="card"><h2>Outbound clicks</h2><div id="clk"></div></div></div>
 </div><script>
+// Auto-lock after 15 minutes without interaction.
+let idleAt=Date.now();['click','keydown','touchstart','mousemove'].forEach(e=>addEventListener(e,()=>idleAt=Date.now(),{passive:true}));
+setInterval(()=>{if(Date.now()-idleAt>15*60e3)location.href='/logout'},30e3);
+document.addEventListener('visibilitychange',()=>{if(!document.hidden&&Date.now()-idleAt>15*60e3)location.href='/logout'});
 const $=id=>document.getElementById(id);
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const fmtS=s=>s>=60?Math.floor(s/60)+'m '+(s%60)+'s':s+'s';

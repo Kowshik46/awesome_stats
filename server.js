@@ -9,10 +9,22 @@ const PORT = process.env.PORT || 3000;
 for (const [k, v] of Object.entries({ SUPABASE_URL, SUPABASE_SERVICE_KEY, ADMIN_PASSWORD, SESSION_SECRET }))
   if (!v) { console.error(`Missing env var ${k}`); process.exit(1); }
 
+// Sessions: a browser-session cookie (gone when the browser closes), signed with a key that includes a
+// random per-process value, so every Render restart or spin-down after inactivity logs everyone out.
+// Also an idle timeout (sliding) and a hard maximum lifetime.
+const BOOT = crypto.randomBytes(16).toString('hex');
+const IDLE_MS = 15 * 60e3, MAX_MS = 4 * 3600e3;
 const sign = (s) => crypto.createHmac('sha256', SESSION_SECRET).update(s).digest('hex');
+const sig = (s) => crypto.createHmac('sha256', SESSION_SECRET + BOOT).update(s).digest('hex');
 const safeEq = (a, b) => { const x = Buffer.from(a), y = Buffer.from(b); return x.length === y.length && crypto.timingSafeEqual(x, y); };
-const makeToken = () => { const exp = Date.now() + 7 * 864e5; return `${exp}.${sign(String(exp))}`; };
-const validToken = (t) => { const [exp, sig] = String(t || '').split('.'); return !!sig && Number(exp) > Date.now() && safeEq(sig, sign(exp)); };
+const makeToken = (iat = Date.now()) => { const p = `${iat}.${Date.now()}`; return `${p}.${sig(p)}`; };
+const sessionOf = (t) => {
+  const [iat, last, s] = String(t || '').split('.');
+  if (!s || !safeEq(s, sig(`${iat}.${last}`))) return null;
+  const now = Date.now();
+  return now - Number(last) < IDLE_MS && now - Number(iat) < MAX_MS ? Number(iat) : null;
+};
+const sessionCookie = (iat) => `session=${makeToken(iat)}; HttpOnly; Secure; SameSite=Strict; Path=/`;
 const cookieOf = (req) => Object.fromEntries((req.headers.cookie || '').split(';').map((c) => c.trim().split(/=(.*)/s).slice(0, 2)));
 
 // Login throttle: 5 failures per IP per 15 minutes.
@@ -75,16 +87,18 @@ http.createServer(async (req, res) => {
       let body = ''; for await (const c of req) { body += c; if (body.length > 1e4) break; }
       const pw = new URLSearchParams(body).get('password') || '';
       if (safeEq(sign(pw), sign(ADMIN_PASSWORD))) {
-        return send(res, 302, '', { Location: '/', 'Set-Cookie': `session=${makeToken()}; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=604800` });
+        return send(res, 302, '', { Location: '/', 'Set-Cookie': sessionCookie() });
       }
       fails.set(ip, [...(fails.get(ip) || []), Date.now()]);
       return send(res, 302, '', { Location: '/login?e=1' });
     }
     if (url.pathname === '/login') return file(res, 'login.html', 'text/html; charset=utf-8');
     if (url.pathname === '/logout') return send(res, 302, '', { Location: '/login', 'Set-Cookie': 'session=; Max-Age=0; Path=/' });
-    if (!validToken(cookieOf(req).session)) {
+    const iat = sessionOf(cookieOf(req).session);
+    if (iat == null) {
       return url.pathname.startsWith('/api/') ? send(res, 401, '{"error":"auth"}', { 'Content-Type': 'application/json' }) : send(res, 302, '', { Location: '/login' });
     }
+    res.setHeader('Set-Cookie', sessionCookie(iat));
     if (url.pathname === '/api/stats') {
       const days = [7, 30, 90, 365].includes(Number(url.searchParams.get('days'))) ? Number(url.searchParams.get('days')) : 30;
       return send(res, 200, JSON.stringify(await stats(days)), { 'Content-Type': 'application/json' });
