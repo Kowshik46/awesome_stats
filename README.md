@@ -22,3 +22,6 @@ Free Render services sleep after inactivity, so the first load can take ~30s.
 
 ## Visitor ID (branch `visitor-id`)
 Counts people, not IPs. Go-live order: run `supabase/migration.sql`, deploy `supabase/ping/index.ts` as the `ping` Edge Function, merge the site change, then merge this branch. Older rows fall back to `ip_hash`.
+
+## Reports
+`/reports` lists the "Report a broken step" submissions from the article pages (table `step_reports`, written by the `note` Edge Function). Mark each new, fixed or wont fix. Uses the existing service key; no new env vars.

@@ -1,0 +1,3 @@
+-- Applied 2026-10-23. Written by the note Edge Function; read and updated by the dashboard (service role).
+create table public.step_reports (id bigint generated always as identity primary key, created_at timestamptz not null default now(), created_at_ist timestamp generated always as ((created_at at time zone 'Asia/Kolkata')) stored, path text, what_broke text not null, expected text, email text, version text, browser text, ip_hash text, status text not null default 'new' check (status in ('new','fixed','wontfix')));
+alter table public.step_reports enable row level security; -- no policies: service role only

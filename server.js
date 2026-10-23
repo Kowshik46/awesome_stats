@@ -71,6 +71,18 @@ async function stats(days) {
   return v;
 }
 
+const sbHeaders = { apikey: SUPABASE_SERVICE_KEY, Authorization: `Bearer ${SUPABASE_SERVICE_KEY}` };
+async function reports() {
+  const r = await fetch(`${SUPABASE_URL}/rest/v1/step_reports?select=id,created_at_ist,path,what_broke,expected,email,version,browser,status&order=id.desc&limit=500`, { headers: sbHeaders });
+  if (!r.ok) throw new Error(`Supabase step_reports: ${r.status}`);
+  return r.json();
+}
+async function setReportStatus(id, status) {
+  if (!Number.isInteger(id) || !['new', 'fixed', 'wontfix'].includes(status)) return false;
+  const r = await fetch(`${SUPABASE_URL}/rest/v1/step_reports?id=eq.${id}`, { method: 'PATCH', headers: { ...sbHeaders, 'Content-Type': 'application/json' }, body: JSON.stringify({ status }) });
+  return r.ok;
+}
+
 const send = (res, code, body, headers = {}) => {
   res.writeHead(code, { 'X-Content-Type-Options': 'nosniff', 'Cache-Control': 'no-store', 'X-Robots-Tag': 'noindex', 'Referrer-Policy': 'no-referrer', ...headers });
   res.end(body);
@@ -81,7 +93,7 @@ http.createServer(async (req, res) => {
   const url = new URL(req.url, 'http://x');
   const ip = (req.headers['x-forwarded-for'] || req.socket.remoteAddress || '').split(',')[0].trim();
   try {
-    if (url.pathname === '/healthz') return send(res, 200, `ok ${(process.env.RENDER_GIT_COMMIT || 'local').slice(0, 7)} routes=visits`);
+    if (url.pathname === '/healthz') return send(res, 200, `ok ${(process.env.RENDER_GIT_COMMIT || 'local').slice(0, 7)} routes=visits,reports`);
     if (url.pathname === '/login' && req.method === 'POST') {
       if (blocked(ip)) return send(res, 429, 'Too many attempts. Try again later.');
       let body = ''; for await (const c of req) { body += c; if (body.length > 1e4) break; }
@@ -109,6 +121,14 @@ http.createServer(async (req, res) => {
       const days = [7, 30, 90, 365].includes(Number(url.searchParams.get('days'))) ? Number(url.searchParams.get('days')) : 30;
       return send(res, 200, JSON.stringify(await visits(days)), { 'Content-Type': 'application/json' });
     }
+    if (url.pathname === '/api/reports' && req.method === 'GET') return send(res, 200, JSON.stringify(await reports()), { 'Content-Type': 'application/json' });
+    if (url.pathname === '/api/reports/status' && req.method === 'POST') {
+      let body = ''; for await (const c of req) { body += c; if (body.length > 1e4) break; }
+      let j = {}; try { j = JSON.parse(body); } catch {}
+      const ok = await setReportStatus(Number(j.id), j.status);
+      return send(res, ok ? 200 : 400, JSON.stringify({ ok }), { 'Content-Type': 'application/json' });
+    }
+    if (url.pathname === '/reports') return file(res, 'reports.html', 'text/html; charset=utf-8');
     if (url.pathname === '/visits') return file(res, 'visits.html', 'text/html; charset=utf-8');
     if (url.pathname === '/') return file(res, 'index.html', 'text/html; charset=utf-8');
     send(res, 404, 'Not found');
