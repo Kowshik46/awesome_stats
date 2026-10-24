@@ -13,7 +13,7 @@ h1{margin:0;font-size:22px}h1 small{display:block;color:var(--mu);font-size:13px
 .st{display:flex;gap:6px;margin-top:12px}.st button{background:none;color:var(--mu);border:1px solid var(--line);border-radius:8px;padding:4px 10px;font:inherit;font-size:12px;cursor:pointer}.st button.on{background:var(--ac);color:#fff;border-color:var(--ac)}
 .empty{color:var(--mu);text-align:center;padding:30px}#err{color:#f87171;display:none}
 </style></head><body><div class="w">
-<header><h1>Reports<small id="sum">Loading…</small></h1><div class="ctl" id="f"><button data-s="new" class="on">New</button><button data-s="fixed">Fixed</button><button data-s="wontfix">Won't fix</button><button data-s="">All</button><a href="/">Dashboard</a><a href="/logout">Log out</a></div></header>
+<header><h1>Reports<small id="sum">Loading…</small></h1><div class="ctl" id="f"><button data-s="new" class="on">New</button><button data-s="fixed">Fixed</button><button data-s="wontfix">Won't fix</button><button data-s="">All</button><a href="/">Dashboard</a><a href="/certs">Certs</a><a href="/logout">Log out</a></div></header>
 <p id="err">Could not load reports. Check the Render logs.</p><div id="list"></div>
 </div><script>
 let idleAt=Date.now();['click','keydown','touchstart','mousemove'].forEach(e=>addEventListener(e,()=>idleAt=Date.now(),{passive:true}));

@@ -83,6 +83,12 @@ async function setReportStatus(id, status) {
   return r.ok;
 }
 
+async function certs() {
+  const r = await fetch(`${SUPABASE_URL}/rest/v1/quiz_certs?select=id,created_at_ist,cert_id,quiz,name,score,total,title,stages,utm_source,utm_campaign,referrer,browser,country&order=id.desc&limit=1000`, { headers: sbHeaders });
+  if (!r.ok) throw new Error(`Supabase quiz_certs: ${r.status}`);
+  return r.json();
+}
+
 const send = (res, code, body, headers = {}) => {
   res.writeHead(code, { 'X-Content-Type-Options': 'nosniff', 'Cache-Control': 'no-store', 'X-Robots-Tag': 'noindex', 'Referrer-Policy': 'no-referrer', ...headers });
   res.end(body);
@@ -93,7 +99,7 @@ http.createServer(async (req, res) => {
   const url = new URL(req.url, 'http://x');
   const ip = (req.headers['x-forwarded-for'] || req.socket.remoteAddress || '').split(',')[0].trim();
   try {
-    if (url.pathname === '/healthz') return send(res, 200, `ok ${(process.env.RENDER_GIT_COMMIT || 'local').slice(0, 7)} routes=visits,reports`);
+    if (url.pathname === '/healthz') return send(res, 200, `ok ${(process.env.RENDER_GIT_COMMIT || 'local').slice(0, 7)} routes=visits,reports,certs`);
     if (url.pathname === '/login' && req.method === 'POST') {
       if (blocked(ip)) return send(res, 429, 'Too many attempts. Try again later.');
       let body = ''; for await (const c of req) { body += c; if (body.length > 1e4) break; }
@@ -128,6 +134,8 @@ http.createServer(async (req, res) => {
       const ok = await setReportStatus(Number(j.id), j.status);
       return send(res, ok ? 200 : 400, JSON.stringify({ ok }), { 'Content-Type': 'application/json' });
     }
+    if (url.pathname === '/api/certs') return send(res, 200, JSON.stringify(await certs()), { 'Content-Type': 'application/json' });
+    if (url.pathname === '/certs') return file(res, 'certs.html', 'text/html; charset=utf-8');
     if (url.pathname === '/reports') return file(res, 'reports.html', 'text/html; charset=utf-8');
     if (url.pathname === '/visits') return file(res, 'visits.html', 'text/html; charset=utf-8');
     if (url.pathname === '/') return file(res, 'index.html', 'text/html; charset=utf-8');
