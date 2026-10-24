@@ -1,4 +1,4 @@
-// Day 13 quiz certificates: stores the name and score a visitor chose to put on their certificate.
+// Claude Quiz certificates: stores the name and score a visitor chose to put on their certificate.
 import { createClient } from "jsr:@supabase/supabase-js@2";
 
 const ALLOWED = ["https://kowshik.co.in", "https://www.kowshik.co.in", "https://kowshik46.github.io"];
@@ -25,7 +25,7 @@ async function sha256(text: string) {
 
 function certId() {
   const a = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789", b = crypto.getRandomValues(new Uint8Array(8));
-  return "CC13-" + Array.from(b, (x) => a[x % a.length]).join("");
+  return "CQ-" + Array.from(b, (x) => a[x % a.length]).join("");
 }
 
 Deno.serve(async (req: Request) => {
@@ -71,7 +71,7 @@ Deno.serve(async (req: Request) => {
   const cert_id = certId();
   const { error } = await supabase.from("quiz_certs").insert({
     cert_id,
-    quiz: clip(body.quiz, 20) ?? "day-13",
+    quiz: clip(body.quiz, 20) ?? "claude-quiz",
     name,
     score,
     total,
